@@ -1,0 +1,27 @@
+name: CICD
+
+# Builds and publishes the snap to the store on every push to main.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # manual trigger
+
+# Keep one CICD run active at a time so publish happens in order.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  cicd:
+    name: Build and publish
+    uses: ./.github/workflows/build-snap.yaml
+    with:
+      # Publishing needs the SNAPCRAFT_STORE_CREDENTIALS secret (a `snapcraft
+      # export-login` blob) and an account on the store's component upload
+      # allow-list. Without the secret the build still runs and publishing is
+      # skipped with a warning.
+      publish-channel: latest/edge
+    secrets:
+      store-credentials: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}

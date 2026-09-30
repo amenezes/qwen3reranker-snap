@@ -1,0 +1,21 @@
+# Q4_K_M on purpose: the Q8_0 build of the 8B reranker (8.05 GB), Q5_K_M
+# (5.42 GB) and Q5_0 (5.29 GB) exceed or crowd the Snap Store's 5 GiB
+# per-component limit; Q4_K_M (4.68 GB, 12.9% margin) is the largest quant
+# that ships as a single component, and the community NDCG benchmark puts it
+# within noise of F16. See ai/07-decisoes.md (DEC-03).
+name: qwen3-reranker-8b
+description: Qwen3-Reranker-8B, the top-quality multilingual text reranker of the Qwen3 Embedding series (Q4_K_M quantization)
+model-card-url: https://huggingface.co/Qwen/Qwen3-Reranker-8B
+format: GGUF
+quantization: Q4_K_M
+
+disk-size: 4460M
+
+# No capabilities declared on purpose: see models/qwen3-reranker-0-6b/model.yaml.
+
+components:
+  - model-8b-q4-k-m-gguf
+
+environment:
+  # Single-file GGUF (no sharding), so no layout/symlinks are needed.
+  - MODEL_FILE=$SNAP_COMPONENTS/model-8b-q4-k-m-gguf/Qwen3-Reranker-8B-Q4_K_M.gguf

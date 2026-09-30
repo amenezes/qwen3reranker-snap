@@ -1,0 +1,65 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Lint package
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint package manifests
+        # Builds modelctl from source and runs `modelctl debug lint-package .`
+        # over snap/snapcraft.yaml, engines/, models/ and runtimes/.
+        uses: canonical/inference-snaps-cli/.github/actions/lint-package@v2.0.0-beta.14
+        with:
+          package-dir: .
+
+  rerank-e2e:
+    name: Rerank E2E (bare runtime)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download default model weights (0.6B Q8_0)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y && sudo apt-get install -y pipx
+          make download-models verify-model
+
+      - name: Download pinned llama.cpp runtime (b10344)
+        run: |
+          set -euo pipefail
+          mkdir -p .verify/llamacpp
+          curl -sL https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-amd64.tar.gz \
+            | tar -xz -C .verify/llamacpp
+
+      - name: Start llama-server in rerank mode
+        run: |
+          set -euo pipefail
+          LL=.verify/llamacpp
+          # -b and -ub must match: llama-server clamps n_ubatch to n_batch
+          # (default 2048), and in rerank mode a prompt must fit in one
+          # physical batch, so this pair is the max rerankable document size.
+          LD_LIBRARY_PATH=$LL/lib $LL/bin/llama-server \
+            --model components/model-0-6b-q8-0-gguf/Qwen3-Reranker-0.6B.Q8_0.gguf \
+            --alias qwen3-reranker-0-6b \
+            --rerank --no-webui \
+            --port 8366 --host 127.0.0.1 -c 8192 -b 2048 -ub 2048 \
+            > .verify/server.log 2>&1 &
+          for i in $(seq 1 120); do
+            curl -sf http://127.0.0.1:8366/health >/dev/null && exit 0
+            sleep 1
+          done
+          echo "server did not come up"; tail -40 .verify/server.log; exit 1
+
+      - name: Run rerank E2E battery
+        run: python3 tests/rerank-e2e.py http://127.0.0.1:8366 qwen3-reranker-0-6b 2048

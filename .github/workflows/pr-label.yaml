@@ -1,0 +1,40 @@
+name: PR Label
+
+# Builds the snap when the `trigger-build` label is applied to a pull request.
+#
+# Only `trigger-build` is supported. The Canonical-family workflow also offers
+# `trigger-tests`, which runs the snap on provisioned Testflinger hardware; that
+# infrastructure is not available here, so testing is done locally with `make install`
+# or by publishing a PR build once store credentials are configured.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    if: github.event.label.name == 'trigger-build' && github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/build-snap.yaml
+
+  remove-label:
+    name: Remove trigger label
+    needs: [build]
+    if: always() && github.event.label.name == 'trigger-build' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      # Removing the label lets it be re-applied to trigger another build.
+      - name: Remove label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr edit "$PR_URL" --remove-label trigger-build

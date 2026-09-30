@@ -1,0 +1,319 @@
+name: qwen3-reranker
+title: Qwen3 Reranker
+base: core24
+summary: Local AI text reranking with the Qwen3-Reranker inference snap
+description: |
+  Qwen3-Reranker is Alibaba Group (Qwen team)'s family of text reranking
+  models, purpose-built for the second stage of retrieval pipelines: given a
+  query and a set of candidate documents, it scores how relevant each document
+  is. It supports 100+ languages (including programming languages), 32K-token
+  inputs and user-defined instructions, and inherits the multilingual and
+  long-text strengths of the Qwen3 foundation models. Combined with an
+  embedding model (e.g. the sibling qwen3-embedding snap) it forms a complete
+  local retrieve-then-rerank RAG stack.
+
+  Use this snap to quickly install an optimized environment for local text
+  reranking with Qwen3-Reranker, served through a Jina/Cohere-compatible
+  /v1/rerank API.
+
+  The snap includes the following hardware-optimized inference engines:
+
+  * cpu: Optimized for x64 and ARM (armv8, armv9) CPUs
+  * nvidia-gpu: CUDA-enabled GPU acceleration
+
+  The most suitable engine is automatically selected based on the available
+  hardware.
+
+  Some accelerators require extra drivers to be usable with this snap:
+  https://documentation.ubuntu.com/inference-snaps/how-to/setup/drivers/
+
+  Three model sizes are available (0.6B by default):
+
+  * qwen3-reranker-0-6b (Q8_0, ~0.6 GB weights): fast, for edge devices and
+    everyday RAG
+  * qwen3-reranker-4b (Q8_0, ~4.3 GB weights): higher ranking quality
+  * qwen3-reranker-8b (Q4_K_M, ~4.7 GB weights): top multilingual quality
+
+  Switch sizes with `sudo qwen3-reranker use-model <model>` and restart the
+  service.
+
+  **Requirements:**
+
+  * Memory: from ~1.5 GB on the cpu engine with the 0.6B model. The context
+    size is fitted to the available memory automatically (down to a 4096-token
+    floor), up to the model's 32K maximum. On the nvidia-gpu engine, llama.cpp
+    offloads as many layers as fit in the GPU, so partial offload is supported.
+  * Disk: ~1 GB once installed with the 0.6B model (snap + llama.cpp component
+    + weights), plus ~1.1 GB if the nvidia-gpu engine is selected (~730 MB
+    download). The 4B and 8B weights add ~4.3 GB / ~4.7 GB respectively.
+
+  **Install:**
+
+  `sudo snap install qwen3-reranker`
+
+  **Use:**
+
+  `qwen3-reranker --help`
+
+  Reranking is served at `http://127.0.0.1:8366/v1/rerank`:
+
+  `curl -s http://127.0.0.1:8366/v1/rerank -H 'Content-Type: application/json'
+  -d '{"model": "qwen3-reranker-0-6b", "query": "What is the capital of
+  China?", "documents": ["The capital of China is Beijing.", "Gravity
+  accelerates bodies towards each other."], "top_n": 2}'`
+
+  **License:**
+
+  The Qwen3-Reranker models are provided by the Qwen team (Alibaba Group)
+  under the Apache-2.0 license:
+  https://huggingface.co/Qwen/Qwen3-Reranker-0.6B
+
+  The GGUF conversions are published by Voodisss under the same license:
+  https://huggingface.co/Voodisss/Qwen3-Reranker-0.6B-GGUF-llama_cpp
+
+  The licenses of all the bundled software can be found after installing the
+  snap at `/snap/qwen3-reranker/current/usr/share/doc`.
+icon: snap/gui/icon-256.png
+license: GPL-3.0
+website: https://github.com/amenezes/qwen3reranker
+source-code: https://github.com/amenezes/qwen3reranker
+issues: https://github.com/amenezes/qwen3reranker/issues
+contact: https://github.com/amenezes/qwen3reranker/issues
+
+adopt-info: version
+
+grade: stable
+confinement: strict
+compression: lzo
+
+assumes:
+  - snapd2.68 # for components support
+
+platforms:
+  amd64:
+  arm64:
+
+slots:
+  provider:
+    interface: content
+    content: inference-provider
+    source:
+      read:
+        - $SNAP_COMMON/share/provider
+
+plugs:
+  # To allow side-loading models into server (root daemon) from user home directory
+  home:
+    read: all
+
+environment:
+  SNAP_COMPONENTS: /snap/$SNAP_INSTANCE_NAME/components/$SNAP_REVISION
+  ARCH_TRIPLET: $CRAFT_ARCH_TRIPLET_BUILD_FOR
+
+layout:
+  # Under wsl the libraries are expected in /usr/lib/wsl
+  /usr/lib/wsl:
+    bind: $SNAP_COMMON/usr/lib/wsl
+
+hooks:
+  install:
+    plugs: &install-plugs
+      # For hardware detection
+      - hardware-observe
+      - opengl
+  post-refresh:
+    plugs: *install-plugs
+
+parts:
+  version:
+    after: [cli]
+    plugin: nil
+    source: . # To regenerate the git hash on every change
+    build-packages:
+      - jq
+      - git
+    override-pull: |
+      # Do nothing. This significantly reduces build time when sourcing large files.
+    override-build: |
+      set -eo pipefail
+      cli_version=$($CRAFT_STAGE/bin/modelctl version --format=json | jq .cli --raw-output)
+      # `git describe` needs at least one commit; a fresh clone under review
+      # (staged files, no commit yet) must still build, so fall back to the
+      # short HEAD and finally to a "local" marker.
+      git_hash=$(git -C "$SNAPCRAFT_PROJECT_DIR" describe --always 2>/dev/null || true)
+      if [ -z "$git_hash" ]; then
+        git_hash=$(git -C "$SNAPCRAFT_PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || true)
+      fi
+      if [ -z "$git_hash" ]; then
+        git_hash="local"
+      fi
+      craftctl set version="${cli_version#v}+${git_hash}"
+
+  cli:
+    source:
+      - on amd64: https://github.com/canonical/inference-snaps-cli/releases/download/v2.0.0-beta.14/inference-snaps-cli-linux-amd64.tar.xz
+      - on arm64: https://github.com/canonical/inference-snaps-cli/releases/download/v2.0.0-beta.14/inference-snaps-cli-linux-arm64.tar.xz
+    plugin: dump
+    override-build: |
+      # For tab completion
+      ln --symbolic ./modelctl bin/qwen3-reranker
+
+      craftctl default
+
+  cli-dependencies:
+    plugin: nil
+    stage-packages:
+      - pciutils # lspci
+
+  # Used for NVIDIA vRAM and CUDA Capability detection.
+  # Only the binary is included to avoid staging libraries, which should instead
+  # be provided by the host through the opengl interface.
+  cli-nvidia-smi:
+    plugin: nil
+    build-packages:
+      - nvidia-utils-580
+    override-build: |
+      mkdir -p $CRAFT_PART_INSTALL/usr/bin
+      cp /usr/bin/nvidia-smi $CRAFT_PART_INSTALL/usr/bin/
+
+      license_dir=$CRAFT_PART_INSTALL/usr/share/doc/nvidia-utils-580/
+      mkdir -p $license_dir
+      cp /usr/share/doc/nvidia-utils-580/copyright $license_dir/
+
+  engines:
+    source: engines
+    plugin: dump
+    organize:
+      "*": engines/
+
+  models:
+    source: models
+    plugin: dump
+    organize:
+      "*": models/
+
+  runtimes:
+    source: runtimes
+    plugin: dump
+    organize:
+      "*": runtimes/
+
+  scripts:
+    source: scripts
+    plugin: dump
+    stage-packages:
+      - jq
+    organize:
+      "server.sh": bin/
+
+  local-component-files:
+    # Use the cmake plugin instead of "dump" to prevent unwanted copies
+    # See https://github.com/canonical/craft-parts/issues/1609
+    plugin: cmake
+    source: components
+    override-build: |
+      cp -rf --archive --link --no-dereference ${CRAFT_PART_SRC}/* ${CRAFT_PART_INSTALL}
+    organize:
+      "model-0-6b-q8-0-gguf/Qwen3-Reranker-0.6B.Q8_0.gguf": (component/model-0-6b-q8-0-gguf)
+      "model-4b-q8-0-gguf/Qwen3-Reranker-4B.Q8_0.gguf": (component/model-4b-q8-0-gguf)
+      "model-8b-q4-k-m-gguf/Qwen3-Reranker-8B-Q4_K_M.gguf": (component/model-8b-q4-k-m-gguf)
+
+    prime:
+      # Exclude everything not explicitly organized
+      - -*
+
+  # Pinned deliberately to b10344: the build also used by the sibling snaps
+  # (minicpm5-2b, qwen3-embedding, qwen3guard) and by canonical's
+  # phi4/smollm2/gemma4. This build has native Qwen3 reranker support: the
+  # rerank endpoints (/v1/rerank), RANK pooling with the qwen3 yes/no softmax
+  # and last-token readout, and the {query}/{document} rerank chat template --
+  # all verified empirically for this snap (ai/03-verificacao-empirica.md).
+  # Bump only together with the rerank E2E battery (make rerank-test).
+  llamacpp:
+    plugin: dump
+    source:
+      - on amd64: https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-amd64.tar.gz
+      - on arm64: https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-arm64.tar.gz
+    stage-packages:
+      - libgomp1
+    override-build: |
+      # Move license files to be included in the snap, not the component
+      mkdir -p $CRAFT_PRIME/usr/share/doc/
+      mv licenses $CRAFT_PRIME/usr/share/doc/llama.cpp
+
+      craftctl default
+    organize:
+      "*": (component/llamacpp)
+
+  # Same build tag as the cpu runtime: the CUDA and CPU tarballs of a given
+  # build come from the same upstream commit, so model support is identical.
+  llamacpp-cuda:
+    plugin: dump
+    source:
+      - on amd64: https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-amd64+cuda12.9.tar.gz
+      - on arm64: https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-arm64+cuda12.9.tar.gz
+    stage-packages:
+      - libgomp1
+    override-build: |
+      # Move license files to be included in the snap, not the component
+      mkdir -p $CRAFT_PRIME/usr/share/doc/
+      mv licenses $CRAFT_PRIME/usr/share/doc/llama.cpp+cuda
+
+      craftctl default
+    organize:
+      "*": (component/llamacpp-cuda)
+
+  notice:
+    plugin: nil
+    source: NOTICE
+    source-type: file
+    override-build: |
+      license_dir=$CRAFT_PART_INSTALL/usr/share/doc
+      mkdir -p $license_dir
+      cp NOTICE $license_dir/
+      cp $SNAPCRAFT_PROJECT_DIR/LICENSE $license_dir/
+      cp $SNAPCRAFT_PROJECT_DIR/LICENSE-qwen3-reranker $license_dir/
+
+components:
+  model-0-6b-q8-0-gguf:
+    type: standard
+    summary: Qwen3-Reranker-0.6B Q8_0 GGUF
+    description: Model weights for Qwen3-Reranker-0.6B in GGUF format, quantized to Q8_0
+
+  model-4b-q8-0-gguf:
+    type: standard
+    summary: Qwen3-Reranker-4B Q8_0 GGUF
+    description: Model weights for Qwen3-Reranker-4B in GGUF format, quantized to Q8_0
+
+  model-8b-q4-k-m-gguf:
+    type: standard
+    summary: Qwen3-Reranker-8B Q4_K_M GGUF
+    description: Model weights for Qwen3-Reranker-8B in GGUF format, quantized to Q4_K_M
+
+  llamacpp:
+    type: standard
+    summary: llama.cpp using default CPU instruction sets
+    description: LLM inference in C/C++
+
+  llamacpp-cuda:
+    type: standard
+    summary: llama.cpp with CUDA backend
+    description: LLM inference in C/C++
+
+apps:
+  qwen3-reranker:
+    command: bin/modelctl
+    completer: bin/snap-completer.bash
+    plugs:
+      - hardware-observe
+      - opengl
+      - network
+
+  server:
+    command: bin/server.sh
+    daemon: simple
+    plugs:
+      - network-bind
+      - hardware-observe
+      - opengl
+      - home

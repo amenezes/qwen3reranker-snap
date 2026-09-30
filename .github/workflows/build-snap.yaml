@@ -1,0 +1,94 @@
+name: Build snap
+
+# Reusable workflow: builds the snap plus its components.
+# Called by pr-label.yaml (build on demand) and cicd.yaml (build and publish on main).
+#
+# Why not the Canonical-family reusable workflow (inference-snaps-dev/.github/workflows/
+# build-publish-snap.yaml@v2)? It documents GitHub-hosted runners as unsupported
+# (inference-snaps-dev#40); the root cause is its first step, `sudo snap refresh snapd`,
+# which fails because snapd is a deb on GitHub runners, not a snap. This workflow skips
+# that step and builds with the generic canonical/action-build action instead.
+#
+# Disk budget: `make init-all` fetches ~9.6 GB of GGUF weights (0.6B + 4B + 8B) and the
+# build produces ~9.8 GB of .comp artifacts, so the runner needs ~25 GB free. All three
+# model components must be present at build time: snap/snapcraft.yaml organizes the three
+# GGUFs into components, and a missing weight would silently ship an empty component.
+
+on:
+  workflow_call:
+    inputs:
+      publish-channel:
+        description: >
+          Snap Store channel to release to, e.g. latest/edge or latest/edge/pr-123.
+          Leave empty to only build. Publishing is skipped with a warning when the
+          store-credentials secret is not configured.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      store-credentials:
+        description: snapcraft store credentials (output of `snapcraft export-login`)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build snap
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # `git describe` feeds the snap version (see the `version` part).
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Init build environment
+        # Installs pipx, fetches all three pinned GGUFs (0.6B, 4B, 8B) into
+        # components/ and verifies their sha256.
+        run: make init-all
+
+      - name: Build snap and components
+        uses: canonical/action-build@v1
+
+      - name: Report artifacts
+        run: ls -lh ./*.snap ./*.comp
+
+      - name: Publish to the Snap Store
+        if: ${{ inputs.publish-channel != '' }}
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.store-credentials }}
+          PUBLISH_CHANNEL: ${{ inputs.publish-channel }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]; then
+            echo "::warning::publish-channel '${PUBLISH_CHANNEL}' was requested, but the store-credentials secret is not set. Skipping publish."
+            exit 0
+          fi
+
+          # Uploading components requires an account on the store's allow-list.
+          max_comp_size=$((5 * 1024 * 1024 * 1024)) # 5G store limit per component
+          component_args=()
+          for comp_file in ./*.comp; do
+            [ -f "$comp_file" ] || continue
+
+            # <snap_name>+<comp_name>_<comp_version>.comp  or  <snap_name>+<comp_name>.comp
+            comp_name=$(basename "$comp_file" | cut -d'+' -f2 | cut -d'.' -f1 | cut -d'_' -f1)
+            comp_size=$(stat -c%s "$comp_file")
+            echo "component: $comp_name ($(numfmt --to=iec "$comp_size"))"
+
+            if [ "$comp_size" -gt "$max_comp_size" ]; then
+              echo "::error::component '$comp_name' exceeds the 5G store limit"
+              exit 1
+            fi
+            component_args+=(--component "$comp_name=$comp_file")
+          done
+
+          command -v snapcraft >/dev/null || sudo snap install snapcraft --classic
+
+          snap_file=$(ls ./*.snap)
+          echo "Uploading $snap_file to $PUBLISH_CHANNEL"
+          snapcraft upload "$snap_file" "${component_args[@]}" --release="$PUBLISH_CHANNEL"

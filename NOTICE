@@ -1,0 +1,26 @@
+Qwen3-Reranker (0.6B, 4B, 8B) is provided by the Qwen team (Alibaba Group)
+under the Apache-2.0 License:
+https://huggingface.co/Qwen/Qwen3-Reranker-0.6B
+https://huggingface.co/Qwen/Qwen3-Reranker-4B
+https://huggingface.co/Qwen/Qwen3-Reranker-8B
+
+  Copyright Alibaba Group (Qwen team)
+  Model weights and model configuration: Apache-2.0
+
+The GGUF conversions bundled as snap components are produced by Voodisss from
+the official weights with the official llama.cpp converter, under the same
+Apache-2.0 license:
+https://huggingface.co/Voodisss/Qwen3-Reranker-0.6B-GGUF-llama_cpp
+https://huggingface.co/Voodisss/Qwen3-Reranker-4B-GGUF-llama_cpp
+https://huggingface.co/Voodisss/Qwen3-Reranker-8B-GGUF-llama_cpp
+
+The snap packaging code in this repository is licensed separately under the
+terms specified in the LICENSE file (GPL-3.0).
+
+All artifacts and dependencies included within this snap package are subject to
+their respective licenses, which are documented and available at
+/snap/qwen3-reranker/current/usr/share/doc within the installed snap package.
+
+The bundled llama.cpp runtime is built by Canonical from
+https://github.com/ggml-org/llama.cpp and distributed as snap components;
+its license can be found at /usr/share/doc/llama.cpp.

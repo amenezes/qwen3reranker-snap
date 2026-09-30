@@ -1,0 +1,25 @@
+# Default variant (0.6B, Q8_0). The name carries no quantization suffix on
+# purpose: Q8_0 is near-lossless at this scale and is the quant the snap ships
+# for the 0.6B and 4B sizes. It is what the rerank API serves as the model id
+# (see engines/*/server, --alias).
+# Additional sizes: qwen3-reranker-4b, qwen3-reranker-8b.
+name: qwen3-reranker-0-6b
+description: Qwen3-Reranker-0.6B, a fast multilingual text reranker for retrieve-then-rerank RAG, search and question answering (Q8_0 quantization)
+model-card-url: https://huggingface.co/Qwen/Qwen3-Reranker-0.6B
+format: GGUF
+quantization: Q8_0
+
+disk-size: 610M
+
+# No capabilities declared on purpose: the CLI's capability vocabulary
+# (text, vision, tools, thinking, text-embedding, transcription,
+# realtime-transcription) has no rerank token, and declaring text-embedding
+# would advertise an endpoint (/v1/embeddings) this snap does not serve.
+# See ai/07-decisoes.md (DEC-12).
+
+components:
+  - model-0-6b-q8-0-gguf
+
+environment:
+  # Single-file GGUF (no sharding), so no layout/symlinks are needed.
+  - MODEL_FILE=$SNAP_COMPONENTS/model-0-6b-q8-0-gguf/Qwen3-Reranker-0.6B.Q8_0.gguf

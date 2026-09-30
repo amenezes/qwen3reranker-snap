@@ -1,0 +1,42 @@
+name: nvidia-gpu
+summary: CUDA-optimized for NVIDIA GPUs
+description: |
+  This engine uses llama.cpp with the CUDA backend, in rerank mode.
+
+  It is optimized for NVIDIA GPUs.
+
+  This engine supports both amd64 and arm64 CPU architectures.
+vendor: amenezes.net
+
+# No vram/compute-capability requirement on purpose: llama.cpp defaults to
+# --fit on and --gpu-layers auto, so it offloads as many layers as fit in the
+# GPU (partial offload included). Declaring a minimum VRAM would wrongly
+# exclude GPUs that can run the model. Same choice as the sibling snaps.
+devices:
+  allof:
+    - type: gpu
+      vendor-id: 0x10de # Nvidia Corporation
+  anyof:
+    - type: cpu
+      architecture: amd64
+    - type: cpu
+      architecture: arm64
+
+runtime: llamacpp-cuda
+
+model:
+  default: qwen3-reranker-0-6b
+  options:
+    - qwen3-reranker-0-6b
+    - qwen3-reranker-4b
+    - qwen3-reranker-8b
+
+configurations:
+  sleep-idle-seconds: 600
+  min-context-size: 4096
+  # Physical batch size (llama-server --batch-size + --ubatch-size, both set
+  # to this value) = maximum rerankable document size; see engines/cpu/
+  # engine.yaml for the full rationale. On GPU, larger values use the device
+  # more efficiently for long docs. If VRAM/RAM allows:
+  #   sudo qwen3-reranker set ubatch-size=8192 && sudo snap restart qwen3-reranker
+  ubatch-size: 2048

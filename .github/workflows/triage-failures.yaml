@@ -1,0 +1,22 @@
+# Triages failures in other workflow runs (e.g. a flaky publish step) and re-runs
+# the jobs classified as infrastructure failures.
+#
+# Matches the rest of the inference-snaps family: the reusable workflow comes from
+# canonical/inference-snaps-dev@v2 and needs no secrets, only `actions: write` to
+# re-run jobs.
+
+name: Triage Failures
+
+on:
+  workflow_run:
+    workflows: ['**']
+    types: [completed]
+
+permissions:
+  actions: write # required to re-run jobs
+
+jobs:
+  triage:
+    uses: canonical/inference-snaps-dev/.github/workflows/reuse-triage-failures.yaml@v2
+    with:
+      workflow-run: "${{ toJson(github.event.workflow_run) }}"

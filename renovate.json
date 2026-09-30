@@ -1,0 +1,19 @@
+{
+  "extends": [
+    "config:recommended",
+    "github>canonical/inference-snaps-dev//renovate/default.jsonc#v2"
+  ],
+  "packageRules": [
+    {
+      "description": "Batch llama.cpp runtime bumps into a single monthly PR for review",
+      "matchDepNames": [
+        "canonical/llama.cpp-builds"
+      ],
+      "schedule": [
+        "before 6am on the first day of the month"
+      ],
+      "groupName": "llama.cpp runtime",
+      "automerge": false
+    }
+  ]
+}

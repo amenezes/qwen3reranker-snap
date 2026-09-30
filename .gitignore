@@ -1,0 +1,20 @@
+# Snapcraft build state
+*.snap
+*.comp
+parts/
+prime/
+stage/
+.craft/
+
+# Model weights: fetched by `make init` into components/, never committed.
+# The directory itself is tracked -- its README.md documents the pinned file and
+# keeps the `source: components` part buildable from a fresh clone.
+*.gguf
+
+# Local development environment
+.venv/
+.workshop.lock
+
+# Local-only directories (not part of the snap)
+.verify/
+ai/

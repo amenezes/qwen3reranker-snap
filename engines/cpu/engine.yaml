@@ -1,0 +1,41 @@
+name: cpu
+summary: Optimized for various CPUs
+description: |
+  This engine uses llama.cpp in rerank mode.
+
+  It is optimized for both amd64 and arm64 CPU architectures, for a wide range
+  of architecture variants.
+vendor: amenezes.net
+
+devices:
+  anyof:
+    - type: cpu
+      architecture: amd64
+    - type: cpu
+      architecture: arm64
+
+runtime: llamacpp
+
+model:
+  default: qwen3-reranker-0-6b
+  options:
+    - qwen3-reranker-0-6b
+    - qwen3-reranker-4b
+    - qwen3-reranker-8b
+
+configurations:
+  sleep-idle-seconds: 600
+  min-context-size: 4096
+  # Physical batch size (llama-server --batch-size + --ubatch-size, both set
+  # to this value). For a reranker this knob is the MAXIMUM RERANKABLE
+  # DOCUMENT SIZE: llama-server requires a (query, template, doc) prompt to
+  # fit in one physical batch and rejects longer inputs ("increase the
+  # physical batch size"), and passing only -ub silently caps at the 2048
+  # default of -b, so engines/*/server pass both.
+  # 2048 covers typical RAG chunks (~1700 doc tokens) and measured +2.1 GB
+  # peak RSS on the 0.6B model while processing a 1746-token document
+  # (ai/03 §3). Larger values cost memory fast: an 7983-token document on
+  # 0.6B peaked at ~11.6 GB RSS with ubatch-size=8192. Raise it only with
+  # RAM to spare:
+  #   sudo qwen3-reranker set ubatch-size=8192 && sudo snap restart qwen3-reranker
+  ubatch-size: 2048

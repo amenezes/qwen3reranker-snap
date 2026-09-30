@@ -1,0 +1,50 @@
+#!/bin/bash -eu
+
+port="$(modelctl get http.port)"
+host="$(modelctl get http.host)"
+sleep_idle_seconds="$(modelctl get sleep-idle-seconds)"
+min_context_size="$(modelctl get min-context-size)"
+ubatch_size="$(modelctl get ubatch-size)"
+model_name=$("$SNAP_NAME" model --format=json | jq -r '.name')
+
+extra_args=()
+
+verbose="$(modelctl get verbose)"
+if [ "${verbose}" = "true" ]; then
+  extra_args+=(--verbose)
+fi
+
+set -x
+# This is a reranking model, not a chat model:
+# --rerank exposes the /v1/rerank (Jina/Cohere-compatible) endpoints and sets
+#   embedding mode with RANK pooling internally, so neither --embedding nor
+#   --pooling is passed. The GGUFs embed llama.pooling_type=RANK, the yes/no
+#   cls_out head and the "rerank" chat template with {query}/{document}
+#   placeholders, which the server applies to every pair; the score is the
+#   softmax over the yes/no logits at the last token (0..1, higher = more
+#   relevant).
+# --batch-size + --ubatch-size (both, same value): reranking is
+#   prompt-processing-bound, and llama-server requires a (query, doc) prompt to
+#   FIT IN ONE physical batch -- longer inputs are rejected with "increase the
+#   physical batch size", so ubatch-size is the max rerankable document size.
+#   Passing only -ub silently caps at the 2048 default of -b
+#   (llama-context.cpp: n_ubatch = min(n_batch, n_ubatch)), so the knob drives
+#   both flags. Default 2048; see engines/*/engine.yaml.
+# --no-webui: the snap ships no web UI; reranking has no chat interface.
+# No --jinja/--min-p/reasoning flags: there is no generation or sampling.
+# No --threads on purpose: llama.cpp defaults to the number of physical cores,
+#   which measures faster than --threads $(nproc) on SMT machines.
+exec llama-server \
+  --model "$MODEL_FILE" \
+  --alias "$model_name" \
+  --port "$port" \
+  --host "$host" \
+  --rerank \
+  --batch-size "$ubatch_size" \
+  --ubatch-size "$ubatch_size" \
+  --no-warmup \
+  --sleep-idle-seconds "$sleep_idle_seconds" \
+  --fit-ctx "$min_context_size" \
+  --no-webui \
+  "${extra_args[@]}" \
+  "$@"

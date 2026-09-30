@@ -1,0 +1,34 @@
+#!/bin/bash -eu
+
+port="$(modelctl get http.port)"
+host="$(modelctl get http.host)"
+sleep_idle_seconds="$(modelctl get sleep-idle-seconds)"
+min_context_size="$(modelctl get min-context-size)"
+ubatch_size="$(modelctl get ubatch-size)"
+model_name=$("$SNAP_NAME" model --format=json | jq -r '.name')
+
+extra_args=()
+
+verbose="$(modelctl get verbose)"
+if [ "${verbose}" = "true" ]; then
+  extra_args+=(--verbose)
+fi
+
+set -x
+# Identical to the cpu engine on purpose: llama.cpp defaults to --fit on and
+# --gpu-layers auto, so it decides by itself how many layers to place in VRAM
+# (partial offload supported). See engines/cpu/server for the flag rationale.
+exec llama-server \
+  --model "$MODEL_FILE" \
+  --alias "$model_name" \
+  --port "$port" \
+  --host "$host" \
+  --rerank \
+  --batch-size "$ubatch_size" \
+  --ubatch-size "$ubatch_size" \
+  --no-warmup \
+  --sleep-idle-seconds "$sleep_idle_seconds" \
+  --fit-ctx "$min_context_size" \
+  --no-webui \
+  "${extra_args[@]}" \
+  "$@"

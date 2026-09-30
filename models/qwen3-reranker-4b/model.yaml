@@ -1,0 +1,16 @@
+name: qwen3-reranker-4b
+description: Qwen3-Reranker-4B, a high-quality multilingual text reranker for retrieve-then-rerank RAG, search and question answering (Q8_0 quantization)
+model-card-url: https://huggingface.co/Qwen/Qwen3-Reranker-4B
+format: GGUF
+quantization: Q8_0
+
+disk-size: 4081M
+
+# No capabilities declared on purpose: see models/qwen3-reranker-0-6b/model.yaml.
+
+components:
+  - model-4b-q8-0-gguf
+
+environment:
+  # Single-file GGUF (no sharding), so no layout/symlinks are needed.
+  - MODEL_FILE=$SNAP_COMPONENTS/model-4b-q8-0-gguf/Qwen3-Reranker-4B.Q8_0.gguf
