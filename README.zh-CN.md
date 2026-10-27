@@ -197,6 +197,14 @@ sudo snap restart qwen3-reranker
   sudo snap connect qwen3-reranker:hardware-observe
   sudo qwen3-reranker use-engine --auto
   ```
+* **AMD 引擎需要 `process-control`：** ROCm 运行时用 `sched_setaffinity` 固定其工作线程，而 snapd
+  的默认 seccomp 策略只允许 pid 0 调用该接口。缺少该插件时 HSA 无法初始化，llama.cpp 记录
+  `no ROCm-capable device is detected` 并在 CPU 上运行，而引擎仍显示为 `amd-gpu`。该接口不会自动
+  连接，请在安装后连接一次；发布到商店前还需申请其自动连接：
+  ```shell
+  sudo snap connect qwen3-reranker:process-control
+  sudo snap restart qwen3-reranker.server
+  ```
 * **Provider：** 本 snap 导出 `inference-provider` 内容插槽，其他 snap 可直接消费该
   端点而无需自行运行重排序模型。
 * **本地 API：** 端点无鉴权并允许跨域请求。仅监听 `127.0.0.1`——请勿将 `http.host`

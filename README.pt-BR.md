@@ -217,6 +217,16 @@ sudo snap restart qwen3-reranker
   sudo snap connect qwen3-reranker:hardware-observe
   sudo qwen3-reranker use-engine --auto
   ```
+* **O motor AMD precisa de `process-control`:** o runtime ROCm fixa suas threads de trabalho com
+  `sched_setaffinity`, e a política seccomp padrão do snapd só permite essa chamada para o pid 0.
+  Sem o plugue, o HSA falha ao inicializar, o llama.cpp registra `no ROCm-capable device is
+  detected` e roda na CPU enquanto o motor continua aparecendo como `amd-gpu`. A interface não é
+  auto-conectada, então conecte-a uma vez após a instalação — e peça a auto-conexão antes de
+  publicar na loja:
+  ```shell
+  sudo snap connect qwen3-reranker:process-control
+  sudo snap restart qwen3-reranker.server
+  ```
 * **Provider:** o snap exporta um slot de conteúdo `inference-provider`, para que outro snap
   possa consumir este endpoint em vez de rodar o próprio reranker.
 * **API local:** o endpoint não tem autenticação e permite requisições de outras origens. Ele

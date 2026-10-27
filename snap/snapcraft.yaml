@@ -349,4 +349,8 @@ apps:
       - network-bind
       - hardware-observe
       - opengl
+      # The ROCm runtime pins its worker threads with sched_setaffinity, which the
+      # default seccomp policy only allows for pid 0. Without this plug HSA fails to
+      # initialise and the amd-gpu engine silently falls back to the CPU backend.
+      - process-control
       - home
