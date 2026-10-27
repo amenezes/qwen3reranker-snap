@@ -20,6 +20,7 @@ description: |
 
   * cpu: Optimized for x64 and ARM (armv8, armv9) CPUs
   * nvidia-gpu: CUDA-enabled GPU acceleration
+  * amd-gpu: ROCm-enabled GPU acceleration for AMD GPUs
 
   The most suitable engine is automatically selected based on the available
   hardware.
@@ -41,11 +42,13 @@ description: |
 
   * Memory: from ~1.5 GB on the cpu engine with the 0.6B model. The context
     size is fitted to the available memory automatically (down to a 4096-token
-    floor), up to the model's 32K maximum. On the nvidia-gpu engine, llama.cpp
-    offloads as many layers as fit in the GPU, so partial offload is supported.
+    floor), up to the model's 32K maximum. On the nvidia-gpu and amd-gpu
+    engines, llama.cpp offloads as many layers as fit in the GPU, so partial
+    offload is supported.
   * Disk: ~1 GB once installed with the 0.6B model (snap + llama.cpp component
     + weights), plus ~1.1 GB if the nvidia-gpu engine is selected (~730 MB
-    download). The 4B and 8B weights add ~4.3 GB / ~4.7 GB respectively.
+    download) or ~3.8 GB if the amd-gpu engine is selected (~1.1 GB download).
+    The 4B and 8B weights add ~4.3 GB / ~4.7 GB respectively.
 
   **Install:**
 
@@ -263,6 +266,31 @@ parts:
     organize:
       "*": (component/llamacpp-cuda)
 
+  # Same build tag as the cpu/cuda runtimes (same upstream commit, so model
+  # support is identical). Only amd64 is published upstream, and the tarball
+  # bundles the ROCm runtime libraries (~3.8 GB unpacked), so the part is a
+  # no-op on arm64 and the engine is amd64-only.
+  llamacpp-rocm:
+    plugin: dump
+    source: https://github.com/canonical/llama.cpp-builds/releases/download/b10344/llamacpp-amd64+rocm.tar.gz
+    stage-packages:
+      - libgomp1
+      - libatomic1 # required by the ROCm libraries, absent from core24
+    organize:
+      "*": (component/llamacpp-rocm)
+    # This part is only for amd64
+    override-pull: &amd64-only |
+      [ "$CRAFT_ARCH_BUILD_FOR" == "amd64" ] && craftctl default || exit 0
+    override-build: |
+      [ "$CRAFT_ARCH_BUILD_FOR" == "amd64" ] || exit 0
+      # Move license files to be included in the snap, not the component
+      mkdir -p $CRAFT_PRIME/usr/share/doc/
+      mv licenses $CRAFT_PRIME/usr/share/doc/llama.cpp+rocm
+
+      craftctl default
+    override-stage: *amd64-only
+    override-prime: *amd64-only
+
   notice:
     plugin: nil
     source: NOTICE
@@ -298,6 +326,11 @@ components:
   llamacpp-cuda:
     type: standard
     summary: llama.cpp with CUDA backend
+    description: LLM inference in C/C++
+
+  llamacpp-rocm:
+    type: standard
+    summary: llama.cpp with ROCm backend
     description: LLM inference in C/C++
 
 apps:

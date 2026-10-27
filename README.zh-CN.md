@@ -21,6 +21,7 @@
 
 * cpu：针对 x64 与 ARM（armv8、armv9）CPU 优化
 * nvidia-gpu：CUDA GPU 加速
+* amd-gpu：AMD GPU 的 ROCm 加速
 
 系统会根据可用硬件自动选择最合适的引擎。
 
@@ -36,6 +37,8 @@ qwen3-reranker
 
 > [!TIP]
 > 部分加速器需要额外的[驱动](https://documentation.ubuntu.com/inference-snaps/how-to/setup/drivers/)才能与本 snap 配合使用。
+> `amd-gpu` 引擎使用内核自带的 `amdgpu` 驱动（KFD）；ROCm 用户态库已打包在本
+> snap 中，主机无需安装 ROCm。
 
 立即重排序：
 
@@ -91,7 +94,8 @@ cpu 引擎上 `llama-server` 进程的峰值 RSS，实测条件为上下文 8192
 候选集（通常 20–100 个）上的第二阶段，而不是对整个语料库使用。
 
 安装 0.6B 模型后磁盘占用约 1 GB（snap + llama.cpp 组件 + 权重）；若选择 nvidia-gpu
-引擎再加约 1.1 GB（约 730 MB 下载）。4B 与 8B 权重分别再增加约 4.3 GB / 4.7 GB。
+引擎再加约 1.1 GB（约 730 MB 下载）；若选择 amd-gpu 引擎，再加约 3.8 GB（约 1.1 GB
+下载）。4B 与 8B 权重分别再增加约 4.3 GB / 4.7 GB。
 
 ## 使用指南
 
@@ -183,9 +187,11 @@ sudo snap restart qwen3-reranker
   噪声范围内）。重排序模型请避免低于 Q4_K_M 的量化（Q2_K 损失 4–29%）。
 * **模型许可证：** Apache-2.0（通义千问团队，阿里巴巴集团）。GGUF 转换（Voodisss）为
   Apache-2.0。打包代码为 GPL-3.0。
-* **引擎选择：** 只要 PCI 总线上存在 NVIDIA GPU，就会选择 `nvidia-gpu` 引擎，即使驱动
-  不可用。此时 CUDA 初始化失败，llama.cpp 回退到 CPU 后端；运行
-  `sudo qwen3-reranker use-engine cpu` 可切回并释放约 1.1 GB 组件。选择在安装时进行，
+* **引擎选择：** 只要 PCI 总线上存在对应厂商的 GPU，就会选择 `nvidia-gpu` 或
+  `amd-gpu` 引擎，即使驱动不可用。此时后端初始化失败，llama.cpp 回退到 CPU 后端；运行
+  `sudo qwen3-reranker use-engine cpu` 可切回并释放该引擎组件（NVIDIA 约 1.1 GB，
+  AMD 约 3.8 GB）。AMD 引擎仅匹配内置 ROCm 构建支持的微架构
+  （gfx1010–gfx1201，含 RX 9070 XT）；较旧的 AMD GPU 会选择 cpu 引擎。选择在安装时进行，
   需要 `hardware-observe` 接口；若未获自动连接，请手动连接后重新选择：
   ```shell
   sudo snap connect qwen3-reranker:hardware-observe

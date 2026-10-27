@@ -22,6 +22,7 @@ The snap includes the following hardware-optimized inference engines:
 
 * cpu: Optimized for x64 and ARM (armv8, armv9) CPUs
 * nvidia-gpu: CUDA-enabled GPU acceleration
+* amd-gpu: ROCm-enabled GPU acceleration for AMD GPUs
 
 The most suitable engine is automatically selected based on the available hardware.
 
@@ -37,6 +38,8 @@ qwen3-reranker
 
 > [!TIP]
 > Some accelerators require extra [drivers](https://documentation.ubuntu.com/inference-snaps/how-to/setup/drivers/) to be usable with this snap.
+> The `amd-gpu` engine uses the in-kernel `amdgpu` driver (KFD); the ROCm
+> user-space libraries are bundled in the snap, so no host ROCm install is needed.
 
 Rerank right away:
 
@@ -94,8 +97,8 @@ use it as the second stage over a bounded candidate set (typically 20–100), no
 corpus.
 
 Disk usage is ~1 GB once installed with the 0.6B model (snap + llama.cpp component + weights),
-plus ~1.1 GB if the nvidia-gpu engine is selected (~730 MB download). The 4B and 8B weights add
-~4.3 GB / ~4.7 GB respectively.
+plus ~1.1 GB if the nvidia-gpu engine is selected (~730 MB download), or ~3.8 GB if the amd-gpu
+engine is selected (~1.1 GB download). The 4B and 8B weights add ~4.3 GB / ~4.7 GB respectively.
 
 ## Usage guide
 
@@ -194,12 +197,15 @@ sudo snap restart qwen3-reranker
   within noise of F16). Avoid anything below Q4_K_M for rerankers (Q2_K loses 4–29%).
 * **Model license:** Apache-2.0 (Qwen team, Alibaba Group). The GGUF conversion (Voodisss) is
   Apache-2.0. The packaging code is GPL-3.0.
-* **Engine selection:** the `nvidia-gpu` engine is picked whenever an NVIDIA GPU is present on
-  the PCI bus, even if the driver is not usable. CUDA then fails to initialise and llama.cpp
-  falls back to the CPU backend; run `sudo qwen3-reranker use-engine cpu` to switch back and free
-  the ~1.1 GB component. Selection runs at install time and needs the `hardware-observe`
-  interface; if its auto-connection has not been granted, connect it and re-run the selection
-  manually:
+* **Engine selection:** the `nvidia-gpu` and `amd-gpu` engines are picked whenever a GPU
+  from the matching vendor is present on the PCI bus, even if the driver is not usable.
+  The backend then fails to initialise and llama.cpp falls back to the CPU backend; run
+  `sudo qwen3-reranker use-engine cpu` to switch back and free the engine component
+  (~1.1 GB NVIDIA, ~3.8 GB AMD). The AMD engine only matches the microarchitectures
+  supported by the bundled ROCm build (gfx1010-gfx1201, including the RX 9070 XT);
+  older AMD GPUs select the cpu engine. Selection runs at install time and needs the
+  `hardware-observe` interface; if its auto-connection has not been granted, connect it
+  and re-run the selection manually:
   ```shell
   sudo snap connect qwen3-reranker:hardware-observe
   sudo qwen3-reranker use-engine --auto

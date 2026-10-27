@@ -22,6 +22,7 @@ O snap inclui os seguintes motores de inferência otimizados por hardware:
 
 * cpu: Otimizado para CPUs x64 e ARM (armv8, armv9)
 * nvidia-gpu: Aceleração de GPU via CUDA
+* amd-gpu: aceleração por GPU com ROCm para GPUs AMD
 
 O motor mais adequado é selecionado automaticamente com base no hardware disponível.
 
@@ -37,6 +38,8 @@ qwen3-reranker
 
 > [!TIP]
 > Alguns aceleradores exigem [drivers](https://documentation.ubuntu.com/inference-snaps/how-to/setup/drivers/) adicionais para funcionar com este snap.
+> O motor `amd-gpu` usa o driver `amdgpu` do kernel (KFD); as bibliotecas de user
+> space do ROCm vêm embarcadas no snap, então não é preciso instalar ROCm no host.
 
 Faça *reranking* imediatamente:
 
@@ -95,8 +98,9 @@ curtos/s (0.6B), ~0,4 (4B), ~0,3 (8B). O *reranking* custa um *forward pass* com
 (tipicamente 20–100), não sobre um corpus inteiro.
 
 O uso de disco é de ~1 GB após a instalação com o modelo 0.6B (snap + componente llama.cpp +
-pesos), mais ~1,1 GB se o motor nvidia-gpu for selecionado (~730 MB de download). Os pesos 4B e
-8B adicionam ~4,3 GB / ~4,7 GB, respectivamente.
+pesos), mais ~1,1 GB se o motor nvidia-gpu for selecionado (~730 MB de download), ou ~3,8 GB se o
+motor amd-gpu for selecionado (~1,1 GB de download). Os pesos 4B e 8B adicionam ~4,3 GB / ~4,7 GB,
+respectivamente.
 
 ## Guia de uso
 
@@ -200,12 +204,15 @@ sudo snap restart qwen3-reranker
   rerankers (o Q2_K perde 4–29%).
 * **Licença do modelo:** Apache-2.0 (equipe Qwen, Alibaba Group). A conversão GGUF (Voodisss) é
   Apache-2.0. O código de empacotamento é GPL-3.0.
-* **Seleção de motor:** o motor `nvidia-gpu` é escolhido sempre que uma GPU NVIDIA está presente
-  no barramento PCI, mesmo que o driver não esteja utilizável. O CUDA então falha ao iniciar e o
-  llama.cpp cai para o backend de CPU; rode `sudo qwen3-reranker use-engine cpu` para voltar e
-  liberar o componente de ~1,1 GB. A seleção roda na instalação e precisa da interface
-  `hardware-observe`; se a auto-conexão não tiver sido concedida, conecte e rode a seleção
-  manualmente:
+* **Seleção de motor:** os motores `nvidia-gpu` e `amd-gpu` são escolhidos sempre que
+  existe uma GPU do fornecedor correspondente no barramento PCI, mesmo que o driver não
+  esteja utilizável. Nesse caso o backend falha ao inicializar e o llama.cpp cai para o
+  backend de CPU; rode `sudo qwen3-reranker use-engine cpu` para voltar e liberar o
+  componente do motor (~1,1 GB no NVIDIA, ~3,8 GB no AMD). O motor AMD só casa as
+  microarquiteturas suportadas pelo build ROCm embarcado (gfx1010–gfx1201, incluindo a
+  RX 9070 XT); GPUs AMD mais antigas selecionam o motor cpu. A seleção roda na instalação e
+  precisa da interface `hardware-observe`; se a auto-conexão não tiver sido concedida,
+  conecte e rode a seleção manualmente:
   ```shell
   sudo snap connect qwen3-reranker:hardware-observe
   sudo qwen3-reranker use-engine --auto
