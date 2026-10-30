@@ -240,6 +240,13 @@ make build
 make install
 ```
 
+`make install` 安装 snap 和目录下所有 `.comp`，重新连接各接口，并保留已选定的引擎。若要在全新
+安装中更换引擎，或在执行 `./dev/install.sh --clean`（会清除配置）之后更换，请传入 `--engine`：
+
+```shell
+./dev/install.sh --engine=amd-gpu
+```
+
 测试已安装的 snap：
 ```shell
 make smoke-test                                  # framework basics (engine, config, port)
@@ -249,28 +256,3 @@ make rerank-test MODEL=qwen3-reranker-8b         # after `use-model qwen3-rerank
 
 如需使用本地权重副本，请按各组件 `README.md` 中的说明将文件放置到 `components/` 下，
 并运行 `make verify-model` / `make verify-extra-models`。
-
-## 发布到 Snap Store
-
-有两个商店侧申请是前置条件，且都需要时间，请尽早提交：
-
-* **组件上传权限** —— 权重与 llama.cpp 运行时以
-  [components](https://snapcraft.io/docs/explanation/how-snaps-work/snap-components/)
-  形式分发，组件上传仅限商店白名单账户。请在
-  [Snapcraft 论坛](https://forum.snapcraft.io/c/store-requests/)申请。
-* **`hardware-observe` 自动连接** —— 该接口默认不自动连接，因此在申请获批前，商店
-  安装时 `use-engine --auto` 无法检测硬件（参见
-  [流程](https://snapcraft.io/docs/reference/administration/process-for-aliases-auto-connections-and-tracks/)）。
-
-首次上传还需要已注册名称与真实存在的仓库：商店页面会链接 `snap/snapcraft.yaml` 中的
-`website`、`source-code`、`issues` 与 `contact`。
-
-```shell
-snapcraft login
-snapcraft register qwen3-reranker
-make build
-./dev/upload.sh latest/edge   # snapcraft upload <snap> --component ... --release=latest/edge
-```
-
-配置好 `SNAPCRAFT_STORE_CREDENTIALS` secret（`snapcraft export-login` 的输出）后，
-`.github/workflows/cicd.yaml` 会在每次 push 到 `main` 时发布到 `latest/edge`。

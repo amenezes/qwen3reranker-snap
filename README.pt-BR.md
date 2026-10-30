@@ -262,6 +262,14 @@ make build
 make install
 ```
 
+`make install` instala o snap e todos os `.comp` do diretório, reconecta as interfaces e
+preserva o engine já selecionado. Para trocar o engine numa instalação nova — ou depois de
+`./dev/install.sh --clean`, que apaga a configuração — passe `--engine`:
+
+```shell
+./dev/install.sh --engine=amd-gpu
+```
+
 Teste o snap instalado:
 ```shell
 make smoke-test                                  # fundamentos do framework (motor, configuração, porta)
@@ -271,29 +279,3 @@ make rerank-test MODEL=qwen3-reranker-8b         # após `use-model qwen3-rerank
 
 Para usar uma cópia local dos pesos, coloque os arquivos em `components/` conforme documentado
 no `README.md` de cada componente e rode `make verify-model` / `make verify-extra-models`.
-
-## Publicação na Snap Store
-
-Dois pedidos do lado da loja são pré-requisitos e ambos demoram, então abra-os cedo:
-
-* **Acesso a upload de componentes** — os pesos e o runtime llama.cpp são distribuídos como
-  [components](https://snapcraft.io/docs/explanation/how-snaps-work/snap-components/), e o
-  upload de componentes é limitado a contas na allow-list da loja. Peça no
-  [fórum do Snapcraft](https://forum.snapcraft.io/c/store-requests/).
-* **Auto-conexão de `hardware-observe`** — a interface não é auto-conectada por padrão, então
-  uma instalação pela loja não detecta o hardware no `use-engine --auto` até o pedido ser
-  concedido (veja o
-  [processo](https://snapcraft.io/docs/reference/administration/process-for-aliases-auto-connections-and-tracks/)).
-
-O primeiro upload também exige um nome registrado e um repositório que exista de fato: a página
-da loja liga `website`, `source-code`, `issues` e `contact` do `snap/snapcraft.yaml`.
-
-```shell
-snapcraft login
-snapcraft register qwen3-reranker
-make build
-./dev/upload.sh latest/edge   # snapcraft upload <snap> --component ... --release=latest/edge
-```
-
-`.github/workflows/cicd.yaml` publica em `latest/edge` a cada push na `main` assim que o secret
-`SNAPCRAFT_STORE_CREDENTIALS` (saída de `snapcraft export-login`) estiver configurado.

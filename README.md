@@ -255,6 +255,14 @@ make build
 make install
 ```
 
+`make install` installs the snap and every `.comp` in the directory, reconnects the interfaces
+and preserves the engine already selected. To change the engine on a fresh installation — or
+after `./dev/install.sh --clean`, which wipes the configuration — pass `--engine`:
+
+```shell
+./dev/install.sh --engine=amd-gpu
+```
+
 Test the installed snap:
 ```shell
 make smoke-test                                  # framework basics (engine, config, port)
@@ -264,29 +272,3 @@ make rerank-test MODEL=qwen3-reranker-8b         # after `use-model qwen3-rerank
 
 To use a local copy of the weights, place the files under `components/` as documented in each
 component's `README.md` and run `make verify-model` / `make verify-extra-models`.
-
-## Publishing to the Snap Store
-
-Two store-side requests are prerequisites, and both take time, so open them early:
-
-* **Component upload access** — the weights and the llama.cpp runtime ship as
-  [components](https://snapcraft.io/docs/explanation/how-snaps-work/snap-components/), and
-  uploading components is limited to accounts on the store's allow-list. Request it on the
-  [Snapcraft forum](https://forum.snapcraft.io/c/store-requests/).
-* **Auto-connection of `hardware-observe`** — the interface is not auto-connected by default, so
-  a store install cannot detect the hardware during `use-engine --auto` until the request is
-  granted (see the
-  [process](https://snapcraft.io/docs/reference/administration/process-for-aliases-auto-connections-and-tracks/)).
-
-The first upload also requires a registered name, and a repository that actually exists: the store
-listing links to `website`, `source-code`, `issues` and `contact` from `snap/snapcraft.yaml`.
-
-```shell
-snapcraft login
-snapcraft register qwen3-reranker
-make build
-./dev/upload.sh latest/edge   # snapcraft upload <snap> --component ... --release=latest/edge
-```
-
-`.github/workflows/cicd.yaml` publishes to `latest/edge` on every push to `main` once the
-`SNAPCRAFT_STORE_CREDENTIALS` secret (the output of `snapcraft export-login`) is configured.
