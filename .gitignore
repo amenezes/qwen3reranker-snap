@@ -18,3 +18,10 @@ stage/
 # Local-only directories (not part of the snap)
 .verify/
 ai/
+
+# Local caches and credentials
+.cache/
+.npm-cache-skillcheck/
+.env
+*.pem
+*.key
